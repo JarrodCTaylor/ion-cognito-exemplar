@@ -1,0 +1,5 @@
+{:allow [ion-cognito-exemplar.core/app]
+
+ :http-direct {:handler-fn ion-cognito-exemplar.core/app}
+
+ :app-name "XXXXX"}
