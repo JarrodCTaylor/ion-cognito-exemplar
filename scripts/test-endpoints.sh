@@ -1,7 +1,8 @@
 ## Variables
-apiUrl=<YOUR_APP_URL_FROM_TERRAFORM_OUTPUT>
-userPool=<YOUR_USER_POOL_FROM_TERRAFORM_OUTPUT>
-userPoolClient=<YOUR_USER_POOL_CLIENT_FROM_TERRAFORM_OUTPUT>
+vars=$(terraform output -json > tf-out.json)
+apiUrl=$(jq -r '.api_url.value' tf-out.json)
+userPool=$(jq -r '.user_pool.value' tf-out.json)
+userPoolClient=$(jq -r '.user_pool_client.value' tf-out.json)
 username=exemplarUser
 
 UserToken=$(aws cognito-idp admin-initiate-auth --region us-east-1 --user-pool-id $userPool --client-id $userPoolClient --auth-flow ADMIN_NO_SRP_AUTH --auth-parameters USERNAME=$username,PASSWORD=Password1- | jq -r '.AuthenticationResult.IdToken')

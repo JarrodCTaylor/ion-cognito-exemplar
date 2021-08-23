@@ -1,16 +1,23 @@
-provider "aws" {
-  version = "~> 3.17.0"
-  region = "us-east-1"
-}
-
 ###########
 # Variables
 ###########
-locals {
-  api_name                     = "Authed-Ion-Exemplar"
-  region                       = "us-east-1"
-  gateway_id                   = "XXXXXXX"  # Physical ID of the `HttpDirectApiGateway`. Found in Cloudformation Outputs tab of Compute Stack
-  load_balancer_integration_id = "XXXXXXX"  # Physical ID of the `HttpDirectApiIntegration` found in Cloudformation Outputs tab of Compute Stack
+variable "aws_region" {
+  type = string
+}
+variable "gateway_id" {
+  type = string
+  description = "Physical ID of the `HttpDirectApiGateway`. Found in Cloudformation Outputs tab of Compute Stack"
+}
+variable "lb_integration" {
+  type = string
+  description = "Physical ID of the `HttpDirectApiIntegration` found in Cloudformation Outputs tab of Compute Stack"
+}
+
+###########
+# Provider
+###########
+provider "aws" {
+  region = var.aws_region
 }
 
 ###########
@@ -20,7 +27,7 @@ locals {
 # =========
 # The Cognito user_pool
 resource "aws_cognito_user_pool" "pool" {
-  name = "${local.api_name}-user-pool"
+  name = "ion-example-user-pool"
   password_policy {
     minimum_length    = 8
     require_uppercase = true
@@ -44,7 +51,7 @@ resource "aws_cognito_user_pool" "pool" {
 # =========
 # The Cognito client will be the bridge between the gateway and the user pool
 resource "aws_cognito_user_pool_client" "pool_client" {
-  name                = "${local.api_name}-user-pool-client"
+  name                = "ion-example-user-pool-client"
   user_pool_id        = aws_cognito_user_pool.pool.id
   generate_secret     = false
   explicit_auth_flows = ["ALLOW_ADMIN_USER_PASSWORD_AUTH",
@@ -80,18 +87,18 @@ resource "null_resource" "cognito_user" {
 # =========
 # Creating the public ANY route with the appropriate load balancer integration
 resource "aws_apigatewayv2_route" "public" {
-  api_id    = local.gateway_id
+  api_id    = var.gateway_id
   route_key = "ANY /api/v1/public/{proxy+}"
-  target    = "integrations/${local.load_balancer_integration_id}"
+  target    = "integrations/${var.lb_integration}"
 }
 
 # =========
 # Creating the gateway authorizer with the above created user pool and client
 resource "aws_apigatewayv2_authorizer" "gw_auth" {
-  api_id           = local.gateway_id
+  api_id           = var.gateway_id
   authorizer_type  = "JWT"
   identity_sources = ["$request.header.Authorization"]
-  name             = "${local.api_name}-authorizer"
+  name             = "ion-example-authorizer"
 
   jwt_configuration {
     audience = [aws_cognito_user_pool_client.pool_client.id]
@@ -103,9 +110,9 @@ resource "aws_apigatewayv2_authorizer" "gw_auth" {
 # Creating the authenticated ANY route with the appropriate load balancer integration
 # and the above created authorizer
 resource "aws_apigatewayv2_route" "authed" {
-  api_id = local.gateway_id
+  api_id = var.gateway_id
   route_key = "ANY /api/v1/authed/{proxy+}"
-  target = "integrations/${local.load_balancer_integration_id}"
+  target = "integrations/${var.lb_integration}"
   authorization_type = "JWT"
   authorizer_id = aws_apigatewayv2_authorizer.gw_auth.id
 }
@@ -113,7 +120,7 @@ resource "aws_apigatewayv2_route" "authed" {
 # =========
 # Creating a catch all OPTIONS route. (Only required for request from a browser)
 resource "aws_apigatewayv2_route" "cors" {
-  api_id = local.gateway_id
+  api_id = var.gateway_id
   route_key = "OPTIONS /{proxy+}"
 }
 
@@ -129,5 +136,5 @@ output "user_pool_client" {
 }
 
 output "api_url" {
-  value = "https://${local.gateway_id}.execute-api.${local.region}.amazonaws.com"
+  value = "https://${var.gateway_id}.execute-api.${var.aws_region}.amazonaws.com"
 }
